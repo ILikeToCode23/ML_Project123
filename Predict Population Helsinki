@@ -1,0 +1,143 @@
+# Importing libraries that we use
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import StandardScaler
+
+# Loading the datasets for the training data (1990-2015) and the validating data (2016-2019)
+train_data = pd.read_csv('fin_popu.csv')
+val_data = pd.read_csv('data_val.csv')
+
+# Converting the old months format to a new format ('2000M01' -> '2000-01-01')
+train_data['Month'] = pd.to_datetime(train_data['Month'], format='%YM%m')
+val_data['Month'] = pd.to_datetime(val_data['Month'], format='%YM%m')
+
+# Calculating the total monthly population change (births - deaths + net migration)
+train_data['total_change'] = train_data['Helsinki Live births'] - train_data['Helsinki Deaths'] + train_data['Helsinki Total net migration']
+val_data['total_change'] = val_data['Helsinki Live births'] - val_data['Helsinki Deaths'] + val_data['Helsinki Total net migration']
+
+# Defining the features and target for the training 
+X_train = train_data[['Helsinki Live births', 'Helsinki Deaths', 'Helsinki Total net migration']]
+y_train = train_data['total_change']
+
+# Defining features for the validation
+X_val = val_data[['Helsinki Live births', 'Helsinki Deaths', 'Helsinki Total net migration']]
+
+# Standardize the features to prevent scaling issues
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_val_scaled = scaler.transform(X_val)
+
+# Initialize the linear regression model
+model = LinearRegression()
+
+# Fitting the model to the training data
+model.fit(X_train_scaled, y_train)
+
+
+# Plotting the live births, deaths, and net migration in Helsinki (1990-2015)
+plt.figure(figsize=(14, 8))
+plt.plot(train_data['Month'], train_data['Helsinki Live births'], label='Helsinki Live Births', color='blue')
+plt.plot(train_data['Month'], train_data['Helsinki Deaths'], label='Helsinki Deaths', color='red')
+plt.plot(train_data['Month'], train_data['Helsinki Total net migration'], label='Helsinki Total Net Migration', color='green')
+
+# Adding labels and title
+plt.xlabel('year')
+plt.ylabel('Amount of people')
+plt.title('Helsinki Live Births, Deaths, and Net Migration (1990-2015)')
+plt.legend()
+plt.grid(True)
+plt.show()
+
+
+
+
+# Future validation (2016-2019), generate synthetic future features
+
+# Using mean values for live births, deaths, and migrations from the training data
+mean_features = train_data[['Helsinki Live births', 'Helsinki Deaths', 'Helsinki Total net migration']].mean()
+
+# Creating synthetic features for the future period (2016-2019) by repeating the mean values for 48 months
+future_features_synthetic = pd.DataFrame([mean_features]*48, columns=['Helsinki Live births', 'Helsinki Deaths', 'Helsinki Total net migration'])
+
+# Standardize the synthetic future features
+future_features_synthetic_scaled = scaler.transform(future_features_synthetic)
+
+# Predict the population change for the future period (2016-2019)
+y_pred_changes_test = model.predict(future_features_synthetic_scaled)
+
+# Calculating the mean of predicted changes for 2016-2019
+mean_pred_change_2016_2019 = np.mean(y_pred_changes_test)
+print(f'Mean Predicted Population Change (2016-2019): {mean_pred_change_2016_2019}')
+
+
+# Starting population (January 2016) as a starting point for the prediction 
+initial_population_2016 = 628208  
+
+# Calculating the cumulative sum of the predicted population changes to the known population at the start of 2016
+predicted_population_test = np.cumsum(y_pred_changes_test) + initial_population_2016
+
+# Loading the real population data (2016-2019) for comparison and changes the time format
+real_population_data_2019 = pd.read_csv('pop_2016.csv')  
+real_population_data_2019['Month'] = pd.to_datetime(real_population_data_2019['Month'], format='%YM%m')  
+
+# Plotting the predicted population for the testing period (2016-2019) with the real population to compare the prediction
+plt.figure(figsize=(10, 6))
+plt.plot(val_data['Month'], predicted_population_test, label='Predicted Population (2016-2019)', color='green')
+plt.plot(real_population_data_2019['Month'], real_population_data_2019['Helsinki Population'], label='Real Population (2016-2019)', color='blue')
+
+# Adding labels and title
+plt.xlabel('Time')
+plt.ylabel('Population')
+plt.title('Predicted vs Real Population (2016-2019)')
+plt.legend()
+plt.grid(True)
+plt.show()
+
+
+
+
+# Future predictions (2020-2023), generate synthetic future features
+
+# Using mean values for live births, deaths, and migrations from the training data
+mean_features = train_data[['Helsinki Live births', 'Helsinki Deaths', 'Helsinki Total net migration']].mean()
+
+# Creating synthetic features for the future period (2020-2023) by repeating the mean values for 48 months 
+future_features_synthetic = pd.DataFrame([mean_features]*48, columns=['Helsinki Live births', 'Helsinki Deaths', 'Helsinki Total net migration'])
+
+# Standardize the synthetic future features
+future_features_synthetic_scaled = scaler.transform(future_features_synthetic)
+
+# Predict the population change for the future period (2020-2023)
+y_pred_changes_test = model.predict(future_features_synthetic_scaled)
+
+# Calculating the mean of predicted changes for 2020-2023
+mean_pred_change_2020_2023 = np.mean(y_pred_changes_test)
+print(f'Mean Predicted Population Change (2020-2023): {mean_pred_change_2020_2023}')
+
+# Starting population (January 2020) as a starting point for the prediction
+initial_population_2020 = 653835  
+
+# Calculating the cumulative sum of the predicted population changes to the known population at the start of 2020
+predicted_population_test = np.cumsum(y_pred_changes_test) + initial_population_2020
+
+# Loading the real population data (2020-2023) for comparison and changes the time format
+real_population_data_2023 = pd.read_csv('pop_2020.csv')  
+real_population_data_2023['Month'] = pd.to_datetime(real_population_data_2023['Month'], format='%YM%m') 
+
+# Plotting the predicted population for the testing period (2020-2023) with the real population to compare the prediction
+plt.figure(figsize=(10, 6))
+plt.plot(pd.date_range(start='2020-01-01', periods=48, freq='M'), predicted_population_test, label='Predicted Population (2020-2023)', color='orange')
+plt.plot(real_population_data_2023['Month'], real_population_data_2023['Helsinki Population'], label='Real Population (2020-2023)', color='purple')
+
+# Adding labels and title
+plt.xlabel('Time')
+plt.ylabel('Population')
+plt.title('Predicted vs Real Population (2020-2023)')
+plt.legend()
+plt.grid(True)
+plt.show()
+
+
+
