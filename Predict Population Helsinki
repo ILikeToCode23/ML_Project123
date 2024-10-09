@@ -4,6 +4,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import RandomForestRegressor  
+from sklearn.metrics import mean_squared_error  
+
 
 # Loading the datasets for the training data (1990-2015) and the validating data (2016-2019)
 train_data = pd.read_csv('fin_popu.csv')
@@ -37,6 +40,7 @@ model.fit(X_train_scaled, y_train)
 
 
 # Plotting the live births, deaths, and net migration in Helsinki (1990-2015)
+# This is graph 1
 plt.figure(figsize=(14, 8))
 plt.plot(train_data['Month'], train_data['Helsinki Live births'], label='Helsinki Live Births', color='blue')
 plt.plot(train_data['Month'], train_data['Helsinki Deaths'], label='Helsinki Deaths', color='red')
@@ -53,7 +57,7 @@ plt.show()
 
 
 
-# Future validation (2016-2019), generate synthetic future features
+# Future validation 2016-2019 using Linear Regression
 
 # Using mean values for live births, deaths, and migrations from the training data
 mean_features = train_data[['Helsinki Live births', 'Helsinki Deaths', 'Helsinki Total net migration']].mean()
@@ -64,13 +68,8 @@ future_features_synthetic = pd.DataFrame([mean_features]*48, columns=['Helsinki 
 # Standardize the synthetic future features
 future_features_synthetic_scaled = scaler.transform(future_features_synthetic)
 
-# Predict the population change for the future period (2016-2019)
+# Predict the population change for the future period 2016-2019
 y_pred_changes_test = model.predict(future_features_synthetic_scaled)
-
-# Calculating the mean of predicted changes for 2016-2019
-mean_pred_change_2016_2019 = np.mean(y_pred_changes_test)
-print(f'Mean Predicted Population Change (2016-2019): {mean_pred_change_2016_2019}')
-
 
 # Starting population (January 2016) as a starting point for the prediction 
 initial_population_2016 = 628208  
@@ -82,15 +81,21 @@ predicted_population_test = np.cumsum(y_pred_changes_test) + initial_population_
 real_population_data_2019 = pd.read_csv('pop_2016.csv')  
 real_population_data_2019['Month'] = pd.to_datetime(real_population_data_2019['Month'], format='%YM%m')  
 
+# Compute MSE for Linear Regression (2016-2019)
+mse_linear = mean_squared_error(real_population_data_2019['Helsinki Population'], predicted_population_test)
+print(f'Mean Squared Error (Linear Regression, 2016-2019): {mse_linear}')
+
+
 # Plotting the predicted population for the testing period (2016-2019) with the real population to compare the prediction
+# This is graph 2
 plt.figure(figsize=(10, 6))
-plt.plot(val_data['Month'], predicted_population_test, label='Predicted Population (2016-2019)', color='green')
+plt.plot(val_data['Month'], predicted_population_test, label='Predicted Population (2016-2019)', color='red')
 plt.plot(real_population_data_2019['Month'], real_population_data_2019['Helsinki Population'], label='Real Population (2016-2019)', color='blue')
 
 # Adding labels and title
 plt.xlabel('Time')
 plt.ylabel('Population')
-plt.title('Predicted vs Real Population (2016-2019)')
+plt.title('Predicted vs Real Population using Linear Regression (2016-2019)')
 plt.legend()
 plt.grid(True)
 plt.show()
@@ -98,46 +103,87 @@ plt.show()
 
 
 
-# Future predictions (2020-2023), generate synthetic future features
+# Future validation 2016-2019 using Random Forest Regression
 
-# Using mean values for live births, deaths, and migrations from the training data
-mean_features = train_data[['Helsinki Live births', 'Helsinki Deaths', 'Helsinki Total net migration']].mean()
+# Importing RandomForestRegressor model 
+rf_model = RandomForestRegressor(n_estimators=500, random_state=42) 
 
-# Creating synthetic features for the future period (2020-2023) by repeating the mean values for 48 months 
-future_features_synthetic = pd.DataFrame([mean_features]*48, columns=['Helsinki Live births', 'Helsinki Deaths', 'Helsinki Total net migration'])
+# Fitting the Random Forest model to the training data 
+rf_model.fit(X_train_scaled, y_train)
 
-# Standardize the synthetic future features
-future_features_synthetic_scaled = scaler.transform(future_features_synthetic)
+# Setting number of months (4 years) for prediction and generating synthetic data
+num_months = 48  
+np.random.seed(42)  
+future_births = np.random.normal(loc=X_train['Helsinki Live births'].mean(), scale=X_train['Helsinki Live births'].std(), size=num_months)
+future_deaths = np.random.normal(loc=X_train['Helsinki Deaths'].mean(), scale=X_train['Helsinki Deaths'].std(), size=num_months)
+future_migration = np.random.normal(loc=X_train['Helsinki Total net migration'].mean(), scale=X_train['Helsinki Total net migration'].std(), size=num_months)
 
-# Predict the population change for the future period (2020-2023)
-y_pred_changes_test = model.predict(future_features_synthetic_scaled)
+# Creating a DataFrame for future data
+X_val_1 = pd.DataFrame({'Helsinki Live births': future_births, 'Helsinki Deaths': future_deaths, 'Helsinki Total net migration': future_migration})
 
-# Calculating the mean of predicted changes for 2020-2023
-mean_pred_change_2020_2023 = np.mean(y_pred_changes_test)
-print(f'Mean Predicted Population Change (2020-2023): {mean_pred_change_2020_2023}')
+# Scaling the future features and predicting population changes for the validation set (2016-2019) using the Random Forest model
+X_val_scaled = scaler.transform(X_val_1)
+predicted_changes_rf = rf_model.predict(X_val_scaled)
+
+# Calculating the cumulative sum of the predicted population changes to the known population at the start of 2016
+predicted_population_test_rf = np.cumsum(predicted_changes_rf) + initial_population_2016
+
+# Computing the MSE for Random Forest 2016-2019
+mse_rf = mean_squared_error(real_population_data_2019['Helsinki Population'], predicted_population_test_rf)
+print(f'Mean Squared Error (Random Forest, 2016-2019): {mse_rf}')
+
+
+# Plotting the predicted population for the testing period (2016-2019) with the real population to compare the prediction
+# This is graph 3
+plt.figure(figsize=(10, 6))
+plt.plot(val_data['Month'], predicted_population_test_rf, label='Predicted Population (Random Forest, 2016-2019)', color='green')
+plt.plot(real_population_data_2019['Month'], real_population_data_2019['Helsinki Population'], label='Real Population (2016-2019)', color='blue')
+
+# Adding labels and title
+plt.xlabel('Time')
+plt.ylabel('Population')
+plt.title('Predicted vs Real Population using Random Forest (2016-2019)')
+plt.legend()
+plt.grid(True)
+plt.show()
+
+
+
+
+# Future predictions 2020-2023 using Random Forest Regression
+
+# Re-using future features created above and scaling them
+future_features_synthetic_scaled = scaler.transform(X_val_1)
+
+# Predicting population changes for 2020-2023 
+predicted_changes_future_rf = rf_model.predict(future_features_synthetic_scaled)
 
 # Starting population (January 2020) as a starting point for the prediction
 initial_population_2020 = 653835  
 
 # Calculating the cumulative sum of the predicted population changes to the known population at the start of 2020
-predicted_population_test = np.cumsum(y_pred_changes_test) + initial_population_2020
+predicted_population_test_future_rf = np.cumsum(predicted_changes_future_rf) + initial_population_2020
 
-# Loading the real population data (2020-2023) for comparison and changes the time format
+# Loading the real population data (2020-2023) for comparison and changing the time format
 real_population_data_2023 = pd.read_csv('pop_2020.csv')  
 real_population_data_2023['Month'] = pd.to_datetime(real_population_data_2023['Month'], format='%YM%m') 
 
-# Plotting the predicted population for the testing period (2020-2023) with the real population to compare the prediction
+# Compute MSE for Random Forest (2020-2023)
+mse_rf = mean_squared_error(real_population_data_2023['Helsinki Population'], predicted_population_test_future_rf)
+print(f'Mean Squared Error (Random Forest, 2020-2023): {mse_rf}')
+
+
+# Plotting the predicted population vs the real population for 2020-2023
+# This is graph 4
 plt.figure(figsize=(10, 6))
-plt.plot(pd.date_range(start='2020-01-01', periods=48, freq='M'), predicted_population_test, label='Predicted Population (2020-2023)', color='orange')
-plt.plot(real_population_data_2023['Month'], real_population_data_2023['Helsinki Population'], label='Real Population (2020-2023)', color='purple')
+plt.plot(pd.date_range(start='2020-01-01', periods=num_months, freq='M'), predicted_population_test_future_rf, label='Predicted Population (Random Forest, 2020-2023)', color='green')
+plt.plot(real_population_data_2023['Month'], real_population_data_2023['Helsinki Population'], label='Real Population (2020-2023)', color='blue')
 
 # Adding labels and title
 plt.xlabel('Time')
 plt.ylabel('Population')
-plt.title('Predicted vs Real Population (2020-2023)')
+plt.title('Predicted vs Real Population using Random Forest (2020-2023)')
 plt.legend()
 plt.grid(True)
 plt.show()
-
-
 
